@@ -1,0 +1,9 @@
+## Interface: 120001
+## Title: Burning Rush Reminder
+## Author: Danniedoot
+## Notes: Warns you when Burning Rush is active during combat
+## Version: 1.0
+## SavedVariables: BurningRushReminderDB
+
+BurningRushReminder.lua
+BurningRushReminderOptions.lua
