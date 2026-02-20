@@ -6,6 +6,7 @@ if BurningRushReminderDB.y == nil then BurningRushReminderDB.y = 200 end
 if BurningRushReminderDB.fontSize == nil then BurningRushReminderDB.fontSize = 20 end
 if BurningRushReminderDB.locked == nil then BurningRushReminderDB.locked = true end
 if BurningRushReminderDB.font == nil then BurningRushReminderDB.font = "Fonts\\FRIZQT__.TTF" end
+if BurningRushReminderDB.colour == nil then BurningRushReminderDB.colour = { r = 1, g = 0.2, b = 0.2 } end
 
 -- Warning frame
 local frame = CreateFrame("Frame", "BurningRushReminderFrame", UIParent)
@@ -22,7 +23,6 @@ end)
 
 local text = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 text:SetPoint("CENTER")
-text:SetTextColor(1, 0.2, 0.2)
 text:SetText("BURNING RUSH ACTIVE!")
 
 local DEFAULT_FONT = "Fonts\\FRIZQT__.TTF"
@@ -37,6 +37,15 @@ local function ApplyFont()
     end
 end
 ApplyFont()
+
+local function ApplyColour(r, g, b)
+    local c = BurningRushReminderDB.colour
+    r = r or (c and c.r) or 1
+    g = g or (c and c.g) or 0.2
+    b = b or (c and c.b) or 0.2
+    text:SetTextColor(r, g, b)
+end
+ApplyColour()
 
 local function ApplyLock()
     if BurningRushReminderDB.locked then
@@ -72,6 +81,7 @@ end
 
 function BurningRushReminder_UpdateReminder() UpdateReminder() end
 function BurningRushReminder_ApplyFont() ApplyFont() end
+function BurningRushReminder_ApplyColour(r, g, b) ApplyColour(r, g, b) end
 function BurningRushReminder_ApplyLock() ApplyLock() end
 function BurningRushReminder_SetPreview(state)
     previewActive = state
@@ -90,8 +100,8 @@ eventFrame:RegisterEvent("ADDON_LOADED")
 
 eventFrame:SetScript("OnEvent", function(self, event, unit, castGUID, spellId)
     if event == "ADDON_LOADED" and unit == "BurningRushReminder" then
-        -- SavedVariables are now available, re-apply with correct saved values
         ApplyFont()
+        ApplyColour()
         ApplyLock()
         frame:ClearAllPoints()
         frame:SetPoint("CENTER", UIParent, "CENTER", BurningRushReminderDB.x, BurningRushReminderDB.y)
