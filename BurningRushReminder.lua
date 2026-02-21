@@ -1,54 +1,126 @@
--- Default settings
 BurningRushReminderDB = BurningRushReminderDB or {}
-if BurningRushReminderDB.enabled == nil then BurningRushReminderDB.enabled = true end
-if BurningRushReminderDB.x == nil then BurningRushReminderDB.x = 0 end
-if BurningRushReminderDB.y == nil then BurningRushReminderDB.y = 200 end
-if BurningRushReminderDB.fontSize == nil then BurningRushReminderDB.fontSize = 20 end
-if BurningRushReminderDB.locked == nil then BurningRushReminderDB.locked = true end
-if BurningRushReminderDB.font == nil then BurningRushReminderDB.font = "Fonts\\FRIZQT__.TTF" end
-if BurningRushReminderDB.colour == nil then BurningRushReminderDB.colour = { r = 1, g = 0.2, b = 0.2 } end
 
--- Warning frame
 local frame = CreateFrame("Frame", "BurningRushReminderFrame", UIParent)
 frame:SetSize(300, 60)
-frame:SetPoint("CENTER", UIParent, "CENTER", BurningRushReminderDB.x, BurningRushReminderDB.y)
+frame:SetPoint("CENTER", UIParent, "CENTER", 0, 200)
 frame:SetMovable(true)
-frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
-frame:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    local _, _, _, x, y = self:GetPoint()
-    BurningRushReminderDB.x = x
-    BurningRushReminderDB.y = y
+
+local function GetCentreRelative()
+    local screenCX = UIParent:GetWidth() / 2
+    local screenCY = UIParent:GetHeight() / 2
+    local frameCX, frameCY = frame:GetCenter()
+    if not frameCX then return 0, 0 end
+    return frameCX - screenCX, frameCY - screenCY
+end
+
+frame:SetScript("OnDragStart", function(self)
+    self:StartMoving()
+    if BurningRushReminder_DragPollerShow then BurningRushReminder_DragPollerShow() end
 end)
 
-local text = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+frame:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    if BurningRushReminder_DragPollerHide then BurningRushReminder_DragPollerHide() end
+    local x, y = GetCentreRelative()
+    BurningRushReminderDB.x = x
+    BurningRushReminderDB.y = y
+    self:ClearAllPoints()
+    self:SetPoint("CENTER", UIParent, "CENTER", x, y)
+end)
+
+local text = frame:CreateFontString(nil, "OVERLAY")
 text:SetPoint("CENTER")
+text:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")  -- must be before SetText
 text:SetText("BURNING RUSH ACTIVE!")
 
-local DEFAULT_FONT = "Fonts\\FRIZQT__.TTF"
+-- ============================================================
+-- ANIMATION
+-- ============================================================
+
+local glowTimer = 0
+
+local function Lerp(a, b, t) return a + (b - a) * t end
+
+local animFrame = CreateFrame("Frame", nil, UIParent)
+animFrame:Hide()
+animFrame:SetScript("OnUpdate", function(self, elapsed)
+    local db = BurningRushReminderDB
+    local effect = db.effect or "none"
+    local speed = db.effectSpeed or "medium"
+    local hz = speed or 1.5
+    glowTimer = glowTimer + elapsed
+    local sine = (math.sin(glowTimer * hz * math.pi * 2) + 1) / 2  -- 0..1
+
+    if effect == "pulse" then
+        text:SetAlpha(0.2 + sine * 0.8)
+        local c = db.colour or { r = 1, g = 0.2, b = 0.2 }
+        text:SetTextColor(c.r, c.g, c.b)
+    elseif effect == "flash" then
+        text:SetAlpha(1)
+        local c  = db.colour      or { r = 1, g = 0.2, b = 0.2 }
+        local fc = db.flashColour or { r = 1, g = 1,   b = 0    }
+        text:SetTextColor(
+            Lerp(c.r, fc.r, sine),
+            Lerp(c.g, fc.g, sine),
+            Lerp(c.b, fc.b, sine)
+        )
+    else
+        text:SetAlpha(1)
+        self:Hide()
+    end
+end)
+
+local lastEffect = nil
+
+local function ApplyEffect()
+    local effect = BurningRushReminderDB.effect or "none"
+    -- Only reset timer when effect type changes, not on every call
+    if effect ~= lastEffect then
+        glowTimer = 0
+        lastEffect = effect
+    end
+    text:SetAlpha(1)
+    local c = BurningRushReminderDB.colour or { r = 1, g = 0.2, b = 0.2 }
+    text:SetTextColor(c.r, c.g, c.b)
+    if effect == "pulse" or effect == "flash" then
+        animFrame:Show()
+    else
+        animFrame:Hide()
+    end
+end
+
+function BurningRushReminder_ApplyEffect() ApplyEffect() end
+
+local DEFAULT_FONT   = "Fonts\\FRIZQT__.TTF"
+local DEFAULT_COLOUR = { r = 1, g = 0.2, b = 0.2 }
 
 local function ApplyFont()
-    local font = BurningRushReminderDB.font or DEFAULT_FONT
-    local size = BurningRushReminderDB.fontSize or 20
+    local db = BurningRushReminderDB
+    local font = (db and db.font) or DEFAULT_FONT
+    local size = (db and db.fontSize) or 20
+    -- Normalise slashes — WoW requires backslashes
+    font = font:gsub("/", "\\")
     local success = text:SetFont(font, size, "OUTLINE")
     if not success then
-        BurningRushReminderDB.font = DEFAULT_FONT
         text:SetFont(DEFAULT_FONT, size, "OUTLINE")
     end
 end
-ApplyFont()
 
 local function ApplyColour(r, g, b)
-    local c = BurningRushReminderDB.colour
-    r = r or (c and c.r) or 1
-    g = g or (c and c.g) or 0.2
-    b = b or (c and c.b) or 0.2
-    text:SetTextColor(r, g, b)
+    if not r then
+        local c = BurningRushReminderDB.colour or DEFAULT_COLOUR
+        r, g, b = c.r, c.g, c.b
+    end
+    local effect = BurningRushReminderDB.effect or "none"
+    if effect == "none" then
+        text:SetTextColor(r, g, b)
+    end
 end
-ApplyColour()
 
 local function ApplyLock()
-    if BurningRushReminderDB.locked then
+    local locked = BurningRushReminderDB.locked
+    if locked == nil then locked = true end
+    if locked then
         frame:EnableMouse(false)
         frame:RegisterForDrag()
         frame:SetFrameStrata("MEDIUM")
@@ -58,7 +130,6 @@ local function ApplyLock()
         frame:SetFrameStrata("TOOLTIP")
     end
 end
-ApplyLock()
 
 frame:Hide()
 
@@ -70,12 +141,18 @@ local previewActive = false
 local function UpdateReminder()
     if previewActive then
         frame:Show()
+        ApplyEffect()
         return
     end
     if BurningRushReminderDB.enabled and InCombatLockdown() and burningRushActive then
         frame:Show()
+        ApplyEffect()
     else
         frame:Hide()
+        animFrame:Hide()
+        text:SetAlpha(1)
+        local c = BurningRushReminderDB.colour or DEFAULT_COLOUR
+        text:SetTextColor(c.r, c.g, c.b)
     end
 end
 
@@ -100,11 +177,28 @@ eventFrame:RegisterEvent("ADDON_LOADED")
 
 eventFrame:SetScript("OnEvent", function(self, event, unit, castGUID, spellId)
     if event == "ADDON_LOADED" and unit == "BurningRushReminder" then
-        ApplyFont()
+        local db = BurningRushReminderDB
+        if db.enabled == nil then db.enabled = true end
+        if db.x == nil then db.x = 0 end
+        if db.y == nil then db.y = 200 end
+        if db.fontSize == nil then db.fontSize = 20 end
+        if db.locked == nil then db.locked = true end
+        if db.font == nil then db.font = DEFAULT_FONT end
+        if db.fontName == nil then db.fontName = "Default (Friz Quadrata)" end
+        if db.colour == nil then db.colour = { r = DEFAULT_COLOUR.r, g = DEFAULT_COLOUR.g, b = DEFAULT_COLOUR.b } end
+        if db.effect == nil then db.effect = "none" end
+        if db.effectSpeed == nil then db.effectSpeed = "medium" end
+        if db.flashColour == nil then db.flashColour = { r = 1, g = 1, b = 0 } end
+
         ApplyColour()
         ApplyLock()
+        ApplyEffect()
+        ApplyFont()
+        -- Second call ensures font registers correctly without a FontString template
+        C_Timer.After(0, ApplyFont)
         frame:ClearAllPoints()
-        frame:SetPoint("CENTER", UIParent, "CENTER", BurningRushReminderDB.x, BurningRushReminderDB.y)
+        frame:SetPoint("CENTER", UIParent, "CENTER", db.x, db.y)
+
         self:UnregisterEvent("ADDON_LOADED")
 
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
@@ -142,6 +236,20 @@ eventFrame:SetScript("OnEvent", function(self, event, unit, castGUID, spellId)
         burningRushActive = false
         burningRushInstanceID = nil
         expectingAura = false
+
+    elseif event == "PLAYER_REGEN_DISABLED" then
+        -- Entering combat — check if Burning Rush is already active
+        local i = 1
+        while true do
+            local aura = C_UnitAuras.GetBuffDataByIndex("player", i)
+            if not aura then break end
+            if aura.spellId == BURNING_RUSH_SPELL_ID then
+                burningRushActive = true
+                burningRushInstanceID = aura.auraInstanceID
+                break
+            end
+            i = i + 1
+        end
     end
 
     UpdateReminder()
