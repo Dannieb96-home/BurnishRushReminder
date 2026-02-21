@@ -2,7 +2,7 @@
 ## Title: Burning Rush Reminder
 ## Author: Danniedoot
 ## Notes: Warns you when Burning Rush is active during combat
-## Version: 1.0
+## Version: 1.0.2
 ## SavedVariables: BurningRushReminderDB
 
 BurningRushReminder.lua
